@@ -257,7 +257,7 @@ async def ban_monitor_command(ctx, username: str = None):
         return
 
     embed = discord.Embed(
-        title="🔍 Initializing Enhanced Monitor",
+        title="🔧 Initializing Enhanced Monitor",
         description=f"Account is active - adding **@{username}** to monitoring queue",
         color=0x4169E1
     )
@@ -335,7 +335,7 @@ async def unban_monitor_command(ctx, username: str = None):
         return
 
     embed = discord.Embed(
-        title="🔍 Initializing Enhanced Monitor",
+        title="🔧 Initializing Enhanced Monitor",
         description=f"Account is banned - adding **@{username}** to monitoring queue",
         color=0x4169E1
     )
@@ -448,8 +448,17 @@ async def insta_info_command(ctx, username: str = None):
         embed.add_field(name="👥 Followers", value=f"{int(user_data.get('fw', '0')):,}" if user_data.get('fw', 'N/A').isdigit() else user_data.get('fw', 'N/A'), inline=True)
         embed.add_field(name="👤 Following", value=f"{int(user_data.get('fg', '0')):,}" if user_data.get('fg', 'N/A').isdigit() else user_data.get('fg', 'N/A'), inline=True)
         embed.add_field(name="📸 Posts", value=f"{int(user_data.get('ps', '0')):,}" if user_data.get('ps', 'N/A').isdigit() else user_data.get('ps', 'N/A'), inline=True)
-        embed.add_field(name="🔓 Privacy", value="🔒 Private" if user_data.get('prv') else "🌍 Public", inline=True)
-        embed.add_field(name="🔧 Method", value=f"{'Proxy' if proxy_url and user_data_response.data.get('st') != 'proxy_error' else 'Direct'}", inline=True)
+        embed.add_field(name="🔒 Privacy", value="🔒 Private" if user_data.get('prv') else "🌍 Public", inline=True)
+        
+        # Show which API URL was used
+        api_used = "Direct"
+        if user_data_response.api_url:
+            api_display = user_data_response.api_url.replace('https://', '').replace('http://', '').split('/')[0]
+            api_used = f"API: {api_display}"
+        elif proxy_url and user_data_response.data.get('st') != 'proxy_error':
+            api_used = "Proxy"
+        
+        embed.add_field(name="🔧 Method", value=api_used, inline=True)
         embed.add_field(name="⏰ Fetched", value=datetime.now().strftime('%H:%M:%S'), inline=True)
 
         embed.set_footer(text="Instagram Monitor • Enhanced API • Real-time Data", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png")
@@ -468,6 +477,102 @@ async def insta_info_command(ctx, username: str = None):
             color=0xFFA500
         )
         await loading_msg.edit(embed=error_embed)
+
+# API URL statistics command
+@bot.command(name='apiurls')
+async def api_urls_command(ctx):
+    """Show API URL statistics"""
+    if not is_discord_authorized(ctx.author.id):
+        await ctx.send("❌ You are not authorized to use this bot.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🌐 API URL Statistics",
+        description=f"Rotation Strategy: **{Config.API_URL_ROTATION_STRATEGY}**",
+        color=0x00AAFF,
+        timestamp=datetime.now()
+    )
+    
+    # Get API client from monitor
+    api_client = await monitor._get_api_client()
+    url_stats = api_client.get_url_stats()
+    
+    if not url_stats:
+        embed.add_field(name="Status", value="No API URLs configured", inline=False)
+        await ctx.send(embed=embed)
+        return
+    
+    active_urls = [u for u in url_stats if u['is_active']]
+    inactive_urls = [u for u in url_stats if not u['is_active']]
+    
+    # Active URLs
+    if active_urls:
+        for i, url_stat in enumerate(active_urls[:5], 1):  # Limit to 5
+            url = url_stat['url']
+            # Shorten URL for display
+            display_url = url.replace('https://', '').replace('http://', '')
+            if len(display_url) > 40:
+                display_url = display_url[:37] + '...'
+            
+            success_rate = f"{url_stat['success_rate']:.1f}%"
+            response_time = f"{url_stat['avg_response_time']:.2f}s"
+            success_count = url_stat['success_count']
+            failure_count = url_stat['failure_count']
+            
+            status_emoji = "🟢"
+            field_value = (
+                f"Success Rate: **{success_rate}**\n"
+                f"Avg Response: **{response_time}**\n"
+                f"Requests: {success_count} ✅ / {failure_count} ❌"
+            )
+            
+            embed.add_field(
+                name=f"{status_emoji} API #{i}: {display_url}",
+                value=field_value,
+                inline=False
+            )
+    
+    # Inactive URLs
+    if inactive_urls:
+        inactive_list = []
+        for url_stat in inactive_urls[:3]:  # Limit to 3
+            url = url_stat['url']
+            display_url = url.replace('https://', '').replace('http://', '')
+            if len(display_url) > 40:
+                display_url = display_url[:37] + '...'
+            failures = url_stat['consecutive_failures']
+            inactive_list.append(f"🔴 {display_url} ({failures} consecutive failures)")
+        
+        if inactive_list:
+            embed.add_field(
+                name="⚠️ Inactive URLs",
+                value="\n".join(inactive_list),
+                inline=False
+            )
+    
+    # Summary
+    total_urls = len(url_stats)
+    total_success = sum(u['success_count'] for u in url_stats)
+    total_failure = sum(u['failure_count'] for u in url_stats)
+    total_requests = total_success + total_failure
+    overall_success_rate = (total_success / total_requests * 100) if total_requests > 0 else 0
+    
+    embed.add_field(
+        name="📊 Overall Statistics",
+        value=(
+            f"Total URLs: **{total_urls}** ({len(active_urls)} active)\n"
+            f"Total Requests: **{total_requests:,}**\n"
+            f"Success Rate: **{overall_success_rate:.1f}%**"
+        ),
+        inline=False
+    )
+    
+    embed.set_footer(
+        text="API URL health is tracked automatically",
+        icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png"
+    )
+    
+    await ctx.send(embed=embed)
 
 # Enhanced user management commands
 @bot.command(name='adduser')
@@ -610,6 +715,16 @@ async def stats_command(ctx):
             inline=True
         )
     
+    # API URL count
+    api_client = await monitor._get_api_client()
+    url_stats = api_client.get_url_stats()
+    active_api_urls = len([u for u in url_stats if u['is_active']])
+    embed.add_field(
+        name="🌐 API URLs",
+        value=f"Total: {len(url_stats)}\nActive: {active_api_urls}\nStrategy: {Config.API_URL_ROTATION_STRATEGY}",
+        inline=True
+    )
+    
     embed.set_footer(text="Enhanced Instagram Monitor Bot", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png")
     await ctx.send(embed=embed)
 
@@ -642,6 +757,12 @@ async def list_commands(ctx):
         inline=False
     )
 
+    embed.add_field(
+        name="🔗 API URL Management",
+        value="• `/apiurls` - View API URL statistics and health",
+        inline=False
+    )
+
     if is_bot_owner:
         embed.add_field(
             name="👑 Owner Commands",
@@ -653,18 +774,25 @@ async def list_commands(ctx):
         name="🔧 Enhanced Features",
         value=(
             "• Advanced error handling and retry logic\n"
+            "• Multiple API URL rotation for load balancing\n"
             "• Proxy health monitoring and statistics\n"
             "• Enhanced logging and monitoring\n"
             "• Database connection pooling\n"
             "• Rate limiting and cooldown periods\n"
             f"• Official IG Graph API: {'ON' if Config.IG_GRAPH_API_ENABLED else 'OFF'} (falls back to legacy)\n"
-            "• Real-time statistics and monitoring"
+            "• Real-time statistics and monitoring\n"
+            "• Automatic failover and health-based selection"
         ),
         inline=False
     )
 
     embed.set_footer(text="Enhanced Instagram monitoring with advanced features", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/600px-Instagram_icon.png")
     await ctx.send(embed=embed)
+
+@bot.command(name='help')
+async def help_command(ctx):
+    """Show help information"""
+    await list_commands(ctx)
 
 # Main function
 async def main():
