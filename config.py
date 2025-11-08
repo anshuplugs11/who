@@ -12,44 +12,55 @@ class Config:
     DISCORD_OWNER_ID = int(os.getenv('DISCORD_OWNER_ID', '1393139526154584166'))
     DISCORD_COMMAND_PREFIXES = ['/', '.']
     
-    # API Configuration
-    INSTAGRAM_API_URL = "http://54.242.82.67:5000/api/ig-profile.php"
+    # API Configuration - Multiple URLs for load balancing
+    INSTAGRAM_API_URLS = [
+        "https://ig-profile-api.vercel.app/api/ig-profile.php",
+        "https://hi-nine-olive.vercel.app/api/ig-profile.php",
+        "https://insta-scraper-api.vercel.app/api/ig-profile.php",
+        "http://54.242.82.67:5000/api/ig-profile.php"  # Your original URL
+    ]
+    # Fallback to first URL if list is empty
+    INSTAGRAM_API_URL = INSTAGRAM_API_URLS[0] if INSTAGRAM_API_URLS else "http://54.242.82.67:5000/api/ig-profile.php"
+    
     API_TIMEOUT = 15
     API_RETRY_ATTEMPTS = 3
     API_RETRY_DELAY = 2  # seconds
     API_RATE_LIMIT_DELAY = 1  # seconds between requests
+    
+    # API URL rotation strategy: 'round_robin', 'random', or 'health_based'
+    API_URL_ROTATION_STRATEGY = 'health_based'
 
     # Official Instagram Graph API (optional)
     IG_GRAPH_API_ENABLED = os.getenv('IG_GRAPH_API_ENABLED', 'false').lower() == 'true'
     IG_APP_ID = os.getenv('IG_APP_ID', '')
     IG_APP_SECRET = os.getenv('IG_APP_SECRET', '')
-    IG_ACCESS_TOKEN = os.getenv('IG_ACCESS_TOKEN', '')  # Long-lived User Access Token tied to an Instagram Business/Creator account
-    IG_BUSINESS_ACCOUNT_ID = os.getenv('IG_BUSINESS_ACCOUNT_ID', '')  # Connected Instagram Business/Creator user id for business_discovery
+    IG_ACCESS_TOKEN = os.getenv('IG_ACCESS_TOKEN', '')
+    IG_BUSINESS_ACCOUNT_ID = os.getenv('IG_BUSINESS_ACCOUNT_ID', '')
     IG_GRAPH_API_BASE = os.getenv('IG_GRAPH_API_BASE', 'https://graph.facebook.com/v18.0')
     IG_GRAPH_API_FIELDS = os.getenv('IG_GRAPH_API_FIELDS', 'id,username,name,followers_count,follows_count,media_count,account_type,profile_picture_url,is_verified').split(',')
-    IG_GRAPH_API_RPM = int(os.getenv('IG_GRAPH_API_RPM', '30'))  # soft cap; respect FB rate limits
+    IG_GRAPH_API_RPM = int(os.getenv('IG_GRAPH_API_RPM', '30'))
     
     # Database Configuration
     DATABASE_NAME = 'monitor_logs.db'
     DATABASE_TIMEOUT = 30
     
     # Monitoring Configuration
-    MONITOR_CHECK_INTERVAL = (60, 120)  # Random range in seconds
-    MONITOR_ACCOUNT_DELAY = (10, 20)    # Delay between account checks
+    MONITOR_CHECK_INTERVAL = (60, 120)
+    MONITOR_ACCOUNT_DELAY = (10, 20)
     MAX_CONCURRENT_MONITORS = 50
-    MONITOR_TIMEOUT = 300  # 5 minutes timeout for individual checks
+    MONITOR_TIMEOUT = 300
     
     # Proxy Configuration
     PROXY_TIMEOUT = 10
     PROXY_TEST_URL = "https://httpbin.org/ip"
     MAX_PROXY_FAILURES = 3
-    PROXY_RETRY_DELAY = 30  # seconds
+    PROXY_RETRY_DELAY = 30
     
     # Logging Configuration
     LOG_LEVEL = 'INFO'
     LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     LOG_FILE = 'bot.log'
-    MAX_LOG_SIZE = 10 * 1024 * 1024  # 10MB
+    MAX_LOG_SIZE = 10 * 1024 * 1024
     LOG_BACKUP_COUNT = 5
     
     # Rate Limiting
@@ -58,7 +69,7 @@ class Config:
     
     # Error Handling
     MAX_CONSECUTIVE_ERRORS = 5
-    ERROR_COOLDOWN = 300  # 5 minutes
+    ERROR_COOLDOWN = 300
     
     # GIF URLs for alerts
     BAN_GIF_URLS = [
@@ -78,7 +89,6 @@ class Config:
         "https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3aG44ZTE1dGVpaW8zeHN2amZ1cmdxcXR3amFodWpvdWI4eXN5cHpzZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sUP52mudix9Zu/giphy.gif",
     ]
     
-    # Fun ban/unban messages
     BAN_MESSAGES = [
         "💀 Account has vanished into the void!",
         "🚫 Another one bites the dust!",
@@ -99,7 +109,6 @@ class Config:
         "🦅 Soaring back to freedom!",
     ]
     
-    # User Agents for rotation
     USER_AGENTS = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
